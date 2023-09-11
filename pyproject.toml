@@ -39,3 +39,6 @@ demo = ["torch==2.0.0",
 [tool.setuptools.dynamic]
 version = {attr = "megaclite.__version__"}
 readme = {file = ["README.md"]}
+
+[project.scripts]
+megaclite-server = "megaclite.server:main"
