@@ -233,6 +233,7 @@ def execute_shell_script(tmp_dir: Path, job: ShellJob, conn: Connection):
     with subprocess.Popen(
         ["/bin/bash", "-c", job.command],
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         cwd=str(tmp_dir),
     ) as process:
