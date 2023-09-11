@@ -22,6 +22,7 @@ from .messages import (
     JobResult,
     JobState,
     ShellJob,
+    StdErr,
     StdOut,
     TrainingJob,
 )
@@ -176,18 +177,6 @@ def create_venv_with_requirements(version, requirements: list[str]):
     return tmp_path
 
 
-# pylint: disable=too-few-public-methods
-class RemoteStdout:
-    """Wraps a multiprocessing.connection.Connection to be file compatible."""
-
-    def __init__(self, conn: Connection) -> None:
-        self.conn = conn
-
-    def write(self, text):
-        """Send the text back to the client."""
-        self.conn.send(StdOut(text))
-
-
 def execute_in_subprocess(tmp_dir: Path, job: TrainingJob, conn: Connection, gpu=None):
     """Setup the subprocess execution with stdout redirect."""
 
@@ -215,6 +204,7 @@ def execute_in_subprocess(tmp_dir: Path, job: TrainingJob, conn: Connection, gpu
             str(output_file),
         ],
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         cwd=str(tmp_dir),
         env=env,
@@ -223,9 +213,13 @@ def execute_in_subprocess(tmp_dir: Path, job: TrainingJob, conn: Connection, gpu
 
         for line in iter(process.stdout.readline, ""):
             conn.send(StdOut(line))
-
-    conn.send(JobInfo(state=JobState.FINISHED, no_in_queue=0, uuid=job.uuid))
-    conn.send(JobResult(result=output_file.read_bytes()))
+        for line in iter(process.stderr.readline, ""):
+            conn.send(StdErr(line))
+    if process.returncode == 0:
+        conn.send(JobInfo(state=JobState.FINISHED, no_in_queue=0, uuid=job.uuid))
+        conn.send(JobResult(result=output_file.read_bytes()))
+    else:
+        conn.send(JobInfo(state=JobState.FAILED, no_in_queue=0, uuid=job.uuid))
 
 
 def execute_shell_script(tmp_dir: Path, job: ShellJob, conn: Connection):
@@ -240,6 +234,8 @@ def execute_shell_script(tmp_dir: Path, job: ShellJob, conn: Connection):
 
         for line in iter(process.stdout.readline, ""):
             conn.send(StdOut(line))
+        for line in iter(process.stderr.readline, ""):
+            conn.send(StdErr(line))
 
     conn.send(JobInfo(state=JobState.FINISHED, no_in_queue=0, uuid=job.uuid))
 

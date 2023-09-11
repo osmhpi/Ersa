@@ -31,6 +31,7 @@ from .messages import (
     JobState,
     ShellJob,
     StdOut,
+    StdErr,
     TrainingJob,
 )
 from . import __version__ as VERSION
@@ -111,12 +112,16 @@ class RemoteTrainingMagics(Magics):
                             result = conn.recv()
                             logging.info("retrieving weights from remote finished")
                             on_success(result)
+                    elif message.state == JobState.FAILED:
+                        self.print("<i>Job failed.<i>")
+                        raise RuntimeError("Remote training job failed!")
+
                     if message.state.exited:
                         self.print(
                             f"<i>Job exited with status {str(message.state)}.<i>"
                         )
                         break
-                elif isinstance(message, StdOut):
+                elif isinstance(message, (StdOut, StdErr)):
                     print(message.line, end="")
         except KeyboardInterrupt:
             # pylint: disable=used-before-assignment

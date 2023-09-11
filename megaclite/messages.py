@@ -46,6 +46,11 @@ class StdOut:
 
     line: str
 
+@dataclass
+class StdErr:
+    """Used to send stderr of jobs back to the client."""
+
+    line: str
 
 # pylint: disable=too-few-public-methods
 class EOF:
@@ -60,11 +65,13 @@ class JobState(enum.Enum):
     REJECTED = 3
     FINISHED = 4
     ABORTED = 5
+    FAILED = 6
+
 
     @property
     def exited(self):
         """Return true if the job has exited, for any reason."""
-        return self in set([JobState.REJECTED, JobState.FINISHED, JobState.ABORTED])
+        return self in set([JobState.REJECTED, JobState.FINISHED, JobState.ABORTED, JobState.FAILED])
 
 
 @dataclass
