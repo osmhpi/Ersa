@@ -1,12 +1,16 @@
 """This module implements the client side jupyter extension of megaclite."""
 import argparse
 import datetime
+from itertools import chain
 import logging
+import os
 import shlex
+import subprocess
 import sys
 from io import BytesIO
 from multiprocessing.connection import Client
 from pathlib import Path
+from threading import Thread
 from typing import Optional
 
 import dill
@@ -37,11 +41,11 @@ from .messages import (
 from . import __version__ as VERSION
 
 
-
 def collect_client_info() -> ClientInfo:
     """Return a client info object with data from the current environment."""
     return ClientInfo(
         python_version=sys.version.split(" ", maxsplit=1)[0],
+        user_name=os.getlogin(),
         packages=list(freeze.freeze()),
     )
 
@@ -135,7 +139,7 @@ class RemoteTrainingMagics(Magics):
         """Create, preprocess, send, and postprocess a training job."""
         file = BytesIO()
         logging.info("pickling start")
-        
+
         dill.dump_module(file)
         self.print(f"<i>Sending {len(file.getbuffer())/2**20:.0f}MB of state.<i>")
         job = TrainingJob(
@@ -147,6 +151,7 @@ class RemoteTrainingMagics(Magics):
         )
 
         logging.info("pickling finished")
+
         def success_handler(result: JobResult):
             weights_file = BytesIO(result.result)
             device = torch.device("cpu")
@@ -156,6 +161,33 @@ class RemoteTrainingMagics(Magics):
         self.send_job(job=job, on_success=success_handler)
 
     @line_magic
+    def sync_cwd(self, line):
+        excludes = [".venv", "venv", ".git"]
+        active_venv = os.environ.get("VIRTUAL_ENV")
+        if active_venv:
+            excludes.append(active_venv)
+
+        excludes = [f'"{item}"' for item in excludes]
+        excludes = list(chain(*zip(["--exclude"] * len(excludes), excludes)))
+        server_wd_path = f"/tmp/megaclite/wd/{os.getlogin()}"
+        server = "gx06"
+        args = ["rsync", "-hazupEh", *excludes, ".", f"{server}:{server_wd_path}"]
+        print(" ".join(args))
+        process = subprocess.Popen(
+            args,
+            text=True,
+        )
+        out = ipywidgets.Output()
+        display(out)
+        def on_done():
+            process.wait()
+            out.append_stdout("done")
+
+        thread = Thread(target=on_done)
+        thread.start()
+
+
+    @line_magic
     def run_remote(self, line):
         """Use: %remote_config <host> <port> <key>"""
         self.init_print()
@@ -163,11 +195,19 @@ class RemoteTrainingMagics(Magics):
         job = ShellJob(command=line, client=collect_client_info())
         print(job.client.packages)
         self.send_job(job=job)
-    
+
     @line_magic
     def tag_benchmark(self, line):
-        logging.basicConfig(format=f"%(asctime)s,%(message)s,{VERSION},{line}",filename='log.log', encoding='utf-8',level=logging.INFO)
-    logging.Formatter.formatTime = (lambda self, record, datefmt=None: datetime.datetime.now().isoformat())
+        logging.basicConfig(
+            format=f"%(asctime)s,%(message)s,{VERSION},{line}",
+            filename="log.log",
+            encoding="utf-8",
+            level=logging.INFO,
+        )
+
+    logging.Formatter.formatTime = (
+        lambda self, record, datefmt=None: datetime.datetime.now().isoformat()
+    )
 
     @cell_magic
     @needs_local_scope

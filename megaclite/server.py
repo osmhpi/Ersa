@@ -137,6 +137,10 @@ def get_python_with_version(version: str) -> Path:
     return Path.home() / f".pyenv/versions/{version}/bin/python3"
 
 
+def get_synced_cwd(wd_id: str):
+    return get_tmp_dir("wd") / wd_id
+
+
 def create_venv_with_requirements(version, requirements: list[str]):
     """Create a new venv with the requested python version and packages."""
     print("creating venv with python version", version)
@@ -152,7 +156,7 @@ def create_venv_with_requirements(version, requirements: list[str]):
     for req in sorted(requirements):
         message.update(req.encode())
 
-    tmp_path = get_tmp_dir(message.hexdigest())
+    tmp_path = get_tmp_dir("envs") / message.hexdigest()
     if get_venv(tmp_path).exists():
         return tmp_path
 
@@ -177,16 +181,18 @@ def create_venv_with_requirements(version, requirements: list[str]):
     return tmp_path
 
 
-def execute_in_subprocess(tmp_dir: Path, job: TrainingJob, conn: Connection, gpu=None):
+def execute_in_subprocess(
+    venv_dir: Path, working_dir: Path, job: TrainingJob, conn: Connection, gpu=None
+):
     """Setup the subprocess execution with stdout redirect."""
 
-    state_file = get_state_file(tmp_dir)
-    cell_file = get_cell_file(tmp_dir)
-    output_file = get_output_file(tmp_dir)
+    state_file = get_state_file(working_dir)
+    cell_file = get_cell_file(working_dir)
+    output_file = get_output_file(working_dir)
 
     state_file.write_bytes(job.state)
     cell_file.write_text(job.cell)
-    print(get_python(tmp_dir))
+    print(get_python(venv_dir))
     if gpu is not None:
         env = {**os.environ, "CUDA_VISIBLE_DEVICES": gpu}
         print("CUDA_VISIBLE_DEVICES", gpu)
@@ -195,7 +201,7 @@ def execute_in_subprocess(tmp_dir: Path, job: TrainingJob, conn: Connection, gpu
 
     with subprocess.Popen(
         [
-            get_python(tmp_dir),
+            get_python(venv_dir),
             "-m",
             "megaclite._runtime",
             str(state_file),
@@ -206,10 +212,10 @@ def execute_in_subprocess(tmp_dir: Path, job: TrainingJob, conn: Connection, gpu
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        cwd=str(tmp_dir),
+        cwd=str(working_dir),
         env=env,
     ) as process:
-        conn.send(JobInfo(state=JobState.STARTED, no_in_queue=0, uuid=job.uuid))
+        conn.send(JobInfo(state=JobState.RUNNING, no_in_queue=0, uuid=job.uuid))
 
         for line in iter(process.stdout.readline, ""):
             conn.send(StdOut(line))
@@ -230,7 +236,7 @@ def execute_shell_script(tmp_dir: Path, job: ShellJob, conn: Connection):
         text=True,
         cwd=str(tmp_dir),
     ) as process:
-        conn.send(JobInfo(state=JobState.STARTED, no_in_queue=0, uuid=job.uuid))
+        conn.send(JobInfo(state=JobState.RUNNING, no_in_queue=0, uuid=job.uuid))
 
         for line in iter(process.stdout.readline, ""):
             conn.send(StdOut(line))
@@ -244,10 +250,14 @@ def worker_main(queue, gpus):
     """The main worker thread."""
     while True:
         message, conn = queue.get()
+
+        # conn.send(JobInfo(state=JobState.PREPARING_ENVIRONMENT, no_in_queue=0, uuid=message.uuid))
         install_python_version(message.client.python_version)
-        tmp_dir = create_venv_with_requirements(
+        venv_dir = create_venv_with_requirements(
             message.client.python_version, message.client.packages
         )
+        working_dir = get_synced_cwd(message.client.user_name)
+        # conn.send(JobInfo(state=JobState.ENVIRONMENT_READY, no_in_queue=0, uuid=message.uuid))
         if isinstance(message, TrainingJob):
             if message.mig_slices is not None:
                 with MigSlice(
@@ -255,13 +265,15 @@ def worker_main(queue, gpus):
                     gi_profile=GpuInstanceProfile.from_int(message.mig_slices),
                     ci_profile=ComputeInstanceProfile.from_int(message.mig_slices),
                 ) as mig_slice:
-                    execute_in_subprocess(tmp_dir, message, conn, mig_slice.uuid)
+                    execute_in_subprocess(
+                        venv_dir, working_dir, message, conn, mig_slice.uuid
+                    )
             else:
                 gpu = gpus.get()
-                execute_in_subprocess(tmp_dir, message, conn, gpu)
+                execute_in_subprocess(venv_dir, working_dir, message, conn, gpu)
                 gpus.put(gpu)
         elif isinstance(message, ShellJob):
-            execute_shell_script(tmp_dir, message, conn)
+            execute_shell_script(working_dir, message, conn)
 
 
 # pylint: disable=too-many-locals
@@ -302,6 +314,7 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
     while True:
         try:
             conn = listener.accept()
+            print("new connection accepted")
             message = conn.recv()
             if isinstance(message, TrainingJob):
                 print(
@@ -313,12 +326,12 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
                 message.uuid = job_uuid
                 conn.send(
                     JobInfo(
-                        state=JobState.PENDING, no_in_queue=jobs.qsize(), uuid=job_uuid
+                        state=JobState.ACCEPTED, no_in_queue=jobs.qsize(), uuid=job_uuid
                     )
                 )
             elif isinstance(message, ShellJob):
                 print(
-                    "got new BashJob",
+                    "got new ShellJob",
                     listener.last_accepted,
                     f"#{jobs.qsize()} in queue",
                 )
@@ -326,7 +339,7 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
                 message.uuid = job_uuid
                 conn.send(
                     JobInfo(
-                        state=JobState.PENDING, no_in_queue=jobs.qsize(), uuid=job_uuid
+                        state=JobState.ACCEPTED, no_in_queue=jobs.qsize(), uuid=job_uuid
                     )
                 )
             elif isinstance(message, AbortJob):

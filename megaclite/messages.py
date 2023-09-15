@@ -9,7 +9,17 @@ class ClientInfo:
     """Used to send environment info of the client to the server."""
 
     python_version: str
+    user_name: str
     packages: Optional[list[str]] = field(default_factory=list)
+
+
+@dataclass
+class TrainingJobRequest:
+    """Sent by the client, to request resources for a training job."""
+
+    client: ClientInfo
+    mig_slices: int
+    state_size: int
 
 
 @dataclass
@@ -19,8 +29,8 @@ class TrainingJob:
     cell: str
     model_name: str
     state: bytes
-    client: ClientInfo
-    mig_slices: int
+    client: ClientInfo  # TODO: remove
+    mig_slices: int  # TODO: remove
     uuid: Optional[str] = None
 
 
@@ -67,6 +77,25 @@ class JobState(enum.Enum):
     ABORTED = 5
     FAILED = 6
 
+
+    # # the job request has been accepted and put into a queue
+    # ACCEPTED = enum.auto()
+    # # the server is preparing the environment for the job
+    # PREPARING_ENVIRONMENT = enum.auto()
+    # # the environment is ready
+    # ENVIRONMENT_READY = enum.auto()
+    # # the server is ready for the state data transfer from the client
+    # READY4DATA = enum.auto()
+    # # the job is ready to be executed
+    # READY = enum.auto()
+    # # the job is currently running
+    # RUNNING = enum.auto()
+    # # the job has been rejected for any reason
+    # REJECTED = enum.auto()
+    # # the job was completed successfully
+    # FINISHED = enum.auto()
+    # # the job was aborted (by the client) at any time
+    # ABORTED = enum.auto()
 
     @property
     def exited(self):
