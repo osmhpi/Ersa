@@ -153,6 +153,7 @@ class RemoteTrainingMagics(Magics):
         logging.info("pickling finished")
 
         def success_handler(result: JobResult):
+            logging.info("loading weights started")
             weights_file = BytesIO(result.result)
             device = torch.device("cpu")
             model.load_state_dict(torch.load(weights_file, map_location=device))
