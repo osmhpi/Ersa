@@ -1,5 +1,7 @@
+.megacliterc
 venv/
 data/
+data.old/
 .ipynb_checkpoints
 model-*
 state-*
