@@ -215,7 +215,7 @@ def execute_in_subprocess(
         cwd=str(working_dir),
         env=env,
     ) as process:
-        conn.send(JobInfo(state=JobState.RUNNING, no_in_queue=0, uuid=job.uuid))
+        conn.send(JobInfo(state=JobState.STARTED, no_in_queue=0, uuid=job.uuid))
 
         for line in iter(process.stdout.readline, ""):
             conn.send(StdOut(line))
@@ -237,7 +237,7 @@ def execute_shell_script(tmp_dir: Path, job: ShellJob, conn: Connection):
         text=True,
         cwd=str(tmp_dir),
     ) as process:
-        conn.send(JobInfo(state=JobState.RUNNING, no_in_queue=0, uuid=job.uuid))
+        conn.send(JobInfo(state=JobState.STARTED, no_in_queue=0, uuid=job.uuid))
 
         for line in iter(process.stdout.readline, ""):
             conn.send(StdOut(line))
@@ -253,6 +253,7 @@ def worker_main(queue, gpus):
         message, conn = queue.get()
 
         # conn.send(JobInfo(state=JobState.PREPARING_ENVIRONMENT, no_in_queue=0, uuid=message.uuid))
+        print("installing python")
         install_python_version(message.client.python_version)
         venv_dir = create_venv_with_requirements(
             message.client.python_version, message.client.packages
@@ -327,7 +328,7 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
                 message.uuid = job_uuid
                 conn.send(
                     JobInfo(
-                        state=JobState.ACCEPTED, no_in_queue=jobs.qsize(), uuid=job_uuid
+                        state=JobState.PENDING, no_in_queue=jobs.qsize(), uuid=job_uuid
                     )
                 )
             elif isinstance(message, ShellJob):
@@ -340,7 +341,7 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
                 message.uuid = job_uuid
                 conn.send(
                     JobInfo(
-                        state=JobState.ACCEPTED, no_in_queue=jobs.qsize(), uuid=job_uuid
+                        state=JobState.PENDING, no_in_queue=jobs.qsize(), uuid=job_uuid
                     )
                 )
             elif isinstance(message, AbortJob):
