@@ -81,10 +81,8 @@ class RemoteTrainingMagics(Magics):
         self.apply_torch_patches()
 
     def apply_torch_patches(self):
-        import torch
-
         # don't apply the patch again, if we already did so
-        if  "HAS_GPU" in globals():
+        if "HAS_GPU" in globals():
             return
         original_tensor_to = torch.Tensor.to
         original_module_to = torch.nn.modules.module.Module.to
@@ -92,43 +90,24 @@ class RemoteTrainingMagics(Magics):
         tensor_map = {}
         module_map = {}
         HAS_GPU = False
+
         def patched_tensor_to(*args, **kwargs):
-            if HAS_GPU:
-                return original_tensor_to(*args, **kwargs)    
-            if len(args) >= 2:
-                tensor, device, *_ = args
-                # print("tensor.to", device)
-                tensor_map[tensor] = device
-                return tensor
-                
-            if "device" in kwargs:
-                tensor = args[0]
-                device = kwargs["device"]
-                # print("tensor.to", device)
-                tensor_map[tensor] = device
-                return tensor
-            return original_tensor_to(*args, **kwargs)
+            if HAS_GPU or (len(args) <= 1 and "device" not in kwargs):
+                return original_tensor_to(*args, **kwargs)
+            tensor = args[0]
+            device = kwargs.get("device", args[1])
+            tensor_map[tensor] = device
+            return tensor
 
         def patched_module_to(*args, **kwargs):
-            if HAS_GPU:
-                # print("has gpu")
-                return original_module_to(*args, **kwargs)    
-            if len(args) >= 2:
-                tensor, device, *_ = args
-                # print("module.to", device)
-                module_map[tensor] = device
-                return tensor
-            if "device" in kwargs:
-                tensor = args[0]
-                device = kwargs["device"]
-                # print("module.to", device)
-                module_map[tensor] = device
-                
-                return tensor
-            return  original_module_to(*args, **kwargs)
+            if HAS_GPU or (len(args) <= 1 and "device" not in kwargs):
+                return original_module_to(*args, **kwargs)
+            tensor = args[0]
+            device = kwargs.get("device", args[1])
+            module_map[tensor] = device
+            return tensor
 
         def apply_pending_tensor_moves():
-            print("apply_pending_tensor_moves")
             for tensor, device in tensor_map.items():
                 original_tensor_to(tensor, device=device)
 
@@ -137,11 +116,12 @@ class RemoteTrainingMagics(Magics):
                 original_module_to(module, device=device)
 
         torch.Tensor.to = patched_tensor_to
-        torch.Tensor.to.apply = apply_pending_tensor_moves
         torch.nn.modules.module.Module.to = patched_module_to
-        torch.nn.modules.module.Module.to.apply = apply_pending_module_moves
+        globals()["apply_pending_tensor_moves"] = apply_pending_tensor_moves
+        globals()["apply_pending_module_moves"] = apply_pending_module_moves
 
         torch.cuda.is_available = lambda: True
+        print("patch applied")
 
     def print(self, value: str):
         """Print a message to the currently active message box."""
@@ -244,13 +224,13 @@ class RemoteTrainingMagics(Magics):
         )
         out = ipywidgets.Output()
         display(out)
+
         def on_done():
             process.wait()
             out.append_stdout("done")
 
         thread = Thread(target=on_done)
         thread.start()
-
 
     @line_magic
     def run_remote(self, line):
