@@ -21,10 +21,9 @@ def main(state, cell, model_name, output):
     # load state from the users notebook
     dill.load_module(state)
     cell_lines = Path(cell).read_text(encoding="UTF-8")
-    torch.Tensor.to.apply()
-    torch.nn.modules.module.Module.to.apply()
-    # apply_pending_tensor_moves()
-    # apply_pending_module_moves()
+    import megaclite.client
+    megaclite.client.apply_pending_tensor_moves()
+    megaclite.client.apply_pending_module_moves()
     # train the model
     exec(cell_lines)  # pylint: disable=exec-used
     # save the model
