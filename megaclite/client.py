@@ -52,6 +52,17 @@ def collect_client_info() -> ClientInfo:
 
 COMPUTE_CONFIGS = ["1", "2", "3", "4", "7"]
 
+tensor_map = {}
+module_map = {}
+original_tensor_to, original_module_to = None, None
+
+def apply_pending_tensor_moves():
+    for tensor, device in tensor_map.items():
+        original_tensor_to(tensor, device=device)
+
+def apply_pending_module_moves():
+    for module, device in module_map.items():
+        original_module_to(module, device=device)
 
 @magics_class
 class RemoteTrainingMagics(Magics):
@@ -84,11 +95,11 @@ class RemoteTrainingMagics(Magics):
         # don't apply the patch again, if we already did so
         if "HAS_GPU" in globals():
             return
+        global original_tensor_to, original_module_to
         original_tensor_to = torch.Tensor.to
         original_module_to = torch.nn.modules.module.Module.to
 
-        tensor_map = {}
-        module_map = {}
+
         HAS_GPU = False
 
         def patched_tensor_to(*args, **kwargs):
@@ -107,13 +118,7 @@ class RemoteTrainingMagics(Magics):
             module_map[tensor] = device
             return tensor
 
-        def apply_pending_tensor_moves():
-            for tensor, device in tensor_map.items():
-                original_tensor_to(tensor, device=device)
 
-        def apply_pending_module_moves():
-            for module, device in module_map.items():
-                original_module_to(module, device=device)
 
         torch.Tensor.to = patched_tensor_to
         torch.nn.modules.module.Module.to = patched_module_to
