@@ -1,0 +1,19 @@
+services:
+  megaclite:
+    build: .
+    user: "9915"
+    volumes:
+      - /tmp/megaclite:/tmp/megaclite
+      - /tmp/megaclite/wd/felix:/home/felix/projects/uni/phd/kisz/megaclite
+    environment:
+      HOME: /home/felix
+      WORKINGDIR: /home/felix/projects/uni/phd/kisz/megaclite
+    working_dir: /app
+    # command: bash -c "source /app/venv/bin/activate && python3 -m megaclite.server /tmp/megaclite/sockets/socket0"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
