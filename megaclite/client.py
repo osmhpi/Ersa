@@ -52,25 +52,14 @@ def collect_client_info() -> ClientInfo:
 
 COMPUTE_CONFIGS = ["1", "2", "3", "4", "7"]
 
-tensor_map = {}
-module_map = {}
-original_tensor_to, original_module_to = None, None
-
-def apply_pending_tensor_moves():
-    for tensor, device in tensor_map.items():
-        original_tensor_to(tensor, device=device)
-
-def apply_pending_module_moves():
-    for module, device in module_map.items():
-        original_module_to(module, device=device)
-
 @magics_class
 class RemoteTrainingMagics(Magics):
     """Implements the IPython magic extension."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, shell):
+        super().__init__(shell)
         print(f"loading megaclite version {VERSION}")
+        print(shell)
         self.host: str = "127.0.0.1"
         self.port: str = 6001
         self.key: str = None
@@ -95,15 +84,37 @@ class RemoteTrainingMagics(Magics):
         # don't apply the patch again, if we already did so
         if "HAS_GPU" in globals():
             return
-        global original_tensor_to, original_module_to
+        
         original_tensor_to = torch.Tensor.to
         original_module_to = torch.nn.modules.module.Module.to
+        torch.cuda.set_device = lambda device: None
 
+        namespace =  self.shell.user_ns 
+        tensor_map = {}
+        module_map = {}
+        namespace["tensor_map"] = tensor_map
+        namespace["module_map"] = module_map
+
+        def apply_pending_tensor_moves():
+            # print("apply_pending_tensor_moves", len(tensor_map))
+            for tensor, device in tensor_map.items():
+                # print("original tensor to from apply_pending_tensor_moves", device)
+                original_tensor_to(tensor, device=device)
+
+        def apply_pending_module_moves():
+            # print("apply_pending_module_moves", len(module_map))
+            for module, device in module_map.items():
+                # print("original module to from apply_pending_module_moves", device)
+                original_module_to(module, device=device)
+        
+        namespace["apply_pending_tensor_moves"] = apply_pending_tensor_moves
+        namespace["apply_pending_module_moves"] = apply_pending_module_moves
 
         HAS_GPU = False
 
         def patched_tensor_to(*args, **kwargs):
             if HAS_GPU or (len(args) <= 1 and "device" not in kwargs):
+                # print("original tensor to")
                 return original_tensor_to(*args, **kwargs)
             tensor = args[0]
             device = kwargs.get("device", args[1])
@@ -112,20 +123,17 @@ class RemoteTrainingMagics(Magics):
 
         def patched_module_to(*args, **kwargs):
             if HAS_GPU or (len(args) <= 1 and "device" not in kwargs):
-                return original_module_to(*args, **kwargs)
+                # print("original module to")
+                return self.original_module_to(*args, **kwargs)
             tensor = args[0]
             device = kwargs.get("device", args[1])
             module_map[tensor] = device
             return tensor
 
+        namespace["torch"].Tensor.to = patched_tensor_to
+        namespace["torch"].nn.modules.module.Module.to = patched_module_to
 
-
-        torch.Tensor.to = patched_tensor_to
-        torch.nn.modules.module.Module.to = patched_module_to
-        globals()["apply_pending_tensor_moves"] = apply_pending_tensor_moves
-        globals()["apply_pending_module_moves"] = apply_pending_module_moves
-
-        torch.cuda.is_available = lambda: True
+        namespace["torch"].cuda.is_available = lambda: True
         print("patch applied")
 
     def print(self, value: str):
@@ -186,10 +194,12 @@ class RemoteTrainingMagics(Magics):
 
     def send_training_job(self, cell: str, model, model_name: str, mig_slices: int):
         """Create, preprocess, send, and postprocess a training job."""
+
         file = BytesIO()
         logging.info("pickling start")
 
         dill.dump_module(file)
+
         self.print(f"<i>Sending {len(file.getbuffer())/2**20:.0f}MB of state.<i>")
         job = TrainingJob(
             cell,
@@ -209,6 +219,10 @@ class RemoteTrainingMagics(Magics):
             logging.info("loading weights finished")
 
         self.send_job(job=job, on_success=success_handler)
+
+    @line_magic
+    def notebook(self, line):
+        return self.shell
 
     @line_magic
     def sync_cwd(self, line):
@@ -291,4 +305,5 @@ class RemoteTrainingMagics(Magics):
 
 def load_ipython_extension(ipython):
     """Register the megaclite magic with ipython."""
-    ipython.register_magics(RemoteTrainingMagics)
+    magics = RemoteTrainingMagics(ipython)
+    ipython.register_magics(magics)
