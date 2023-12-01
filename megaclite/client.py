@@ -52,6 +52,7 @@ def collect_client_info() -> ClientInfo:
 
 COMPUTE_CONFIGS = ["1", "2", "3", "4", "7"]
 
+
 @magics_class
 class RemoteTrainingMagics(Magics):
     """Implements the IPython magic extension."""
@@ -84,12 +85,12 @@ class RemoteTrainingMagics(Magics):
         # don't apply the patch again, if we already did so
         if "HAS_GPU" in globals():
             return
-        
+
         original_tensor_to = torch.Tensor.to
         original_module_to = torch.nn.modules.module.Module.to
         torch.cuda.set_device = lambda device: None
 
-        namespace =  self.shell.user_ns 
+        namespace = self.shell.user_ns
         tensor_map = {}
         module_map = {}
         namespace["tensor_map"] = tensor_map
@@ -106,7 +107,7 @@ class RemoteTrainingMagics(Magics):
             for module, device in module_map.items():
                 # print("original module to from apply_pending_module_moves", device)
                 original_module_to(module, device=device)
-        
+
         namespace["apply_pending_tensor_moves"] = apply_pending_tensor_moves
         namespace["apply_pending_module_moves"] = apply_pending_module_moves
 

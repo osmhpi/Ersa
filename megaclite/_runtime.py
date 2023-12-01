@@ -22,6 +22,7 @@ def main(state, cell, model_name, output):
     dill.load_module(state)
     cell_lines = Path(cell).read_text(encoding="UTF-8")
     import megaclite.client
+
     megaclite.client.apply_pending_tensor_moves()
     megaclite.client.apply_pending_module_moves()
     # train the model
