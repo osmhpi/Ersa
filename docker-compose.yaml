@@ -1,15 +1,19 @@
 services:
   megaclite:
+    privileged: true
     build: .
-    user: "9915"
+    user: "5087"
+    ports:
+      - "6666:6666"
     volumes:
-      - /tmp/megaclite:/tmp/megaclite
-      - /tmp/megaclite/wd/felix:/home/felix/projects/uni/phd/kisz/megaclite
+      - /tmp/megaclite-docker:/tmp/megaclite
+      - "../remotefs:/remotefs"
+      - ".:/app"
     environment:
       HOME: /home/felix
       WORKINGDIR: /home/felix/projects/uni/phd/kisz/megaclite
     working_dir: /app
-    # command: bash -c "source /app/venv/bin/activate && python3 -m megaclite.server /tmp/megaclite/sockets/socket0"
+    # attach one gpu to the container
     deploy:
       resources:
         reservations:
