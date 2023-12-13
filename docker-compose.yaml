@@ -9,6 +9,7 @@ services:
       - /tmp/megaclite-docker:/tmp/megaclite
       - "../remotefs:/remotefs"
       - ".:/app"
+      - /tmp/megaclite-docker/.pyenv/versions:/home/felix/.pyenv/versions
     environment:
       HOME: /home/felix
       WORKINGDIR: /home/felix/projects/uni/phd/kisz/megaclite
