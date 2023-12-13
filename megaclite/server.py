@@ -138,6 +138,7 @@ def get_python_with_version(version: str) -> Path:
 
 
 def get_synced_cwd(wd_id: str):
+    """Return the path to the synced working directory."""
     return get_tmp_dir("wd") / wd_id
 
 
