@@ -108,8 +108,21 @@ class RemoteTrainingMagics(Magics):
                 # print("original module to from apply_pending_module_moves", device)
                 original_module_to(module, device=device)
 
+        def reverse_tensor_moves():
+            # print("apply_pending_tensor_moves", len(tensor_map))
+            for tensor, _ in tensor_map.items():
+                original_tensor_to(tensor, device="cpu")
+
+        def reverse_module_moves():
+            # print("apply_pending_module_moves", len(module_map))
+            for module, _ in module_map.items():
+                original_module_to(module, device="cpu")
+
         namespace["apply_pending_tensor_moves"] = apply_pending_tensor_moves
         namespace["apply_pending_module_moves"] = apply_pending_module_moves
+
+        namespace["reverse_tensor_moves"] = reverse_tensor_moves
+        namespace["reverse_module_moves"] = reverse_module_moves
 
         HAS_GPU = False
 
@@ -117,8 +130,9 @@ class RemoteTrainingMagics(Magics):
             if HAS_GPU or (len(args) <= 1 and "device" not in kwargs):
                 # print("original tensor to")
                 return original_tensor_to(*args, **kwargs)
+            
             tensor = args[0]
-            device = kwargs.get("device", args[1])
+            device = kwargs["device"] if "device" in kwargs else args[1]
             tensor_map[tensor] = device
             return tensor
 
@@ -215,8 +229,11 @@ class RemoteTrainingMagics(Magics):
         def success_handler(result: JobResult):
             logging.info("loading weights started")
             weights_file = BytesIO(result.result)
-            device = torch.device("cpu")
-            model.load_state_dict(torch.load(weights_file, map_location=device))
+            # device = torch.device("cpu")
+            # model.load_state_dict(torch.load(weights_file, map_location=device))
+            dill.load_module(weights_file)
+            # reverse tensor moves
+
             logging.info("loading weights finished")
 
         self.send_job(job=job, on_success=success_handler)
@@ -224,6 +241,15 @@ class RemoteTrainingMagics(Magics):
     @line_magic
     def notebook(self, line):
         return self.shell
+
+    @cell_magic
+    def without_cuda(self, line, cell):
+        torch.cuda.is_available = lambda: False
+        # print(cell)
+        result = self.shell.run_cell(cell)
+        # exec(cell, self.shell.user_global_ns)
+        torch.cuda.is_available = lambda: True
+        return result
 
     @line_magic
     def sync_cwd(self, line):
