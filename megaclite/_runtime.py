@@ -26,8 +26,11 @@ def main(state, cell, model_name, output):
     apply_pending_module_moves()
     # train the model
     exec(cell_lines)  # pylint: disable=exec-used
+    reverse_module_moves()
+    reverse_tensor_moves()
     # save the model
-    torch.save(globals()[model_name].state_dict(), output)
+    # torch.save(globals()[model_name].state_dict(), output)
+    dill.dump_module(output)
 
 
 if __name__ == "__main__":
