@@ -27,7 +27,6 @@ class TrainingJob:
     """The TrainingJob message is sent by the client to server to train a new model."""
 
     cell: str
-    model_name: str
     state: bytes
     client: ClientInfo  # TODO: remove
     mig_slices: int  # TODO: remove

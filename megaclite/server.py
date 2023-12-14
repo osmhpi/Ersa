@@ -207,7 +207,6 @@ def execute_in_subprocess(
             "megaclite._runtime",
             str(state_file),
             str(cell_file),
-            job.model_name,
             str(output_file),
         ],
         stdout=subprocess.PIPE,

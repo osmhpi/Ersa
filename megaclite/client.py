@@ -67,19 +67,27 @@ class RemoteTrainingMagics(Magics):
         self.message_box = None
         self.socket = None
         self.address = None
+        self.disabled = False
+
+        if "MEGACLITE_DISABLE" in os.environ:
+            self.disabled = os.environ["MEGACLITE_DISABLE"] == "1"
+            print("megaclite is disabled")
 
         megaclite_rc_path = Path(".megacliterc")
+
         if megaclite_rc_path.exists():
             megaclite_rc = toml.load(megaclite_rc_path)
             self.host = megaclite_rc.get("host", self.host)
             self.port = megaclite_rc.get("port", self.port)
             self.socket = megaclite_rc.get("socket", self.socket)
+
         if self.socket is not None:
             self.address = self.socket
         else:
             self.address = (self.host, self.port)
         print(self.address)
-        self.apply_torch_patches()
+        if not self.disabled:
+            self.apply_torch_patches()
 
     def apply_torch_patches(self):
         # don't apply the patch again, if we already did so
@@ -130,7 +138,7 @@ class RemoteTrainingMagics(Magics):
             if HAS_GPU or (len(args) <= 1 and "device" not in kwargs):
                 # print("original tensor to")
                 return original_tensor_to(*args, **kwargs)
-            
+
             tensor = args[0]
             device = kwargs["device"] if "device" in kwargs else args[1]
             tensor_map[tensor] = device
@@ -207,7 +215,7 @@ class RemoteTrainingMagics(Magics):
             if result.state == JobState.ABORTED:
                 self.print(f"<i>Job with uuid {job_uuid} was aborted.<i>")
 
-    def send_training_job(self, cell: str, model, model_name: str, mig_slices: int):
+    def send_training_job(self, cell: str, mig_slices: int):
         """Create, preprocess, send, and postprocess a training job."""
 
         file = BytesIO()
@@ -218,7 +226,6 @@ class RemoteTrainingMagics(Magics):
         self.print(f"<i>Sending {len(file.getbuffer())/2**20:.0f}MB of state.<i>")
         job = TrainingJob(
             cell,
-            model_name,
             file.getvalue(),
             client=collect_client_info(),
             mig_slices=mig_slices,
@@ -228,11 +235,8 @@ class RemoteTrainingMagics(Magics):
 
         def success_handler(result: JobResult):
             logging.info("loading weights started")
-            weights_file = BytesIO(result.result)
-            # device = torch.device("cpu")
-            # model.load_state_dict(torch.load(weights_file, map_location=device))
-            dill.load_module(weights_file)
-            # reverse tensor moves
+            results_file = BytesIO(result.result)
+            dill.load_module(results_file)
 
             logging.info("loading weights finished")
 
@@ -301,31 +305,24 @@ class RemoteTrainingMagics(Magics):
     )
 
     @cell_magic
-    @needs_local_scope
-    def train_remote(self, line, cell, local_ns):
+    def train_remote(self, line, cell):
         """Use: %%remote <model> [<compute-slices>]"""
         self.init_print()
 
+        if self.disabled:
+            self.print("megaclite is disabled")
+            return self.shell.run_cell(cell)
         parser = argparse.ArgumentParser(description="Remote training job args.")
-        parser.add_argument("model", type=str)
-        # parser.add_argument('-m', '--mig',
-        #             action='store_true')
-        # parser.add_argument("memory", choices=MEMORY_CONFIGS)
         parser.add_argument("compute", choices=COMPUTE_CONFIGS, nargs="?")
 
         args = parser.parse_args(shlex.split(line))
 
-        model_name = args.model
-        shared_text = ""  # "shared" if args.shared else "dedicated"
         self.print(
-            f"<i>training <b>{model_name}</b> on a <b>{shared_text}</b> remote gpu</i>"
+            f"<i>training on a remote gpu</i>"
             + f"<br><i>MIG: requesting <b>{args.compute}</b> compute slices<i>"
         )
-        # <b>{args.memory}</b> of memory and
         self.send_training_job(
             cell,
-            local_ns[model_name],
-            model_name,
             int(args.compute) if args.compute else None,
         )
 

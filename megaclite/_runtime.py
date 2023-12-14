@@ -10,9 +10,8 @@ import torch  # pylint: disable=import-outside-toplevel
 @click.command()
 @click.argument("state")
 @click.argument("cell")
-@click.argument("model_name")
 @click.argument("output")
-def main(state, cell, model_name, output):
+def main(state, cell, output):
     """Run the training job.
     1. Load the state of the jupyter notebook from the provided file.
     2. Run the actual training script (cell).
