@@ -311,7 +311,10 @@ class RemoteTrainingMagics(Magics):
 
         if self.disabled:
             self.print("megaclite is disabled")
-            return self.shell.run_cell(cell)
+            logging.info("local execution started")
+            result = self.shell.run_cell(cell)
+            logging.info("local execution finished")
+            return result
         parser = argparse.ArgumentParser(description="Remote training job args.")
         parser.add_argument("compute", choices=COMPUTE_CONFIGS, nargs="?")
 
