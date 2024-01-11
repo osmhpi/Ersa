@@ -139,7 +139,9 @@ def get_python_with_version(version: str) -> Path:
 
 def get_synced_cwd(wd_id: str):
     """Return the path to the synced working directory."""
-    return get_tmp_dir("wd") / wd_id
+    wd = get_tmp_dir("wd") / wd_id
+    wd.mkdir(parents=True, exist_ok=True)
+    return wd
 
 
 def create_venv_with_requirements(version, requirements: list[str]):
@@ -190,6 +192,8 @@ def execute_in_subprocess(
     state_file = get_state_file(working_dir)
     cell_file = get_cell_file(working_dir)
     output_file = get_output_file(working_dir)
+
+    print(state_file)
 
     state_file.write_bytes(job.state)
     cell_file.write_text(job.cell)
@@ -259,6 +263,7 @@ def worker_main(queue, gpus):
             message.client.python_version, message.client.packages
         )
         working_dir = get_synced_cwd(message.client.user_name)
+        print(working_dir)
         # conn.send(JobInfo(state=JobState.ENVIRONMENT_READY, no_in_queue=0, uuid=message.uuid))
         if isinstance(message, TrainingJob):
             if message.mig_slices is not None:
@@ -288,6 +293,7 @@ def worker_main(queue, gpus):
 def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[str]):
     """The main function"""
     if socket is not None:
+        Path(socket).parent.mkdir(parents=True, exist_ok=True)
         listener = Listener(socket)
     else:
         listener = Listener((host, port))
