@@ -299,6 +299,11 @@ class RemoteTrainingMagics(Magics):
             encoding="utf-8",
             level=logging.INFO,
         )
+    
+    @needs_local_scope
+    @line_magic
+    def log(self, line, local_ns):
+        logging.info(local_ns[line])
 
     logging.Formatter.formatTime = (
         lambda self, record, datefmt=None: datetime.datetime.now().isoformat()
