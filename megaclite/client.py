@@ -293,9 +293,11 @@ class RemoteTrainingMagics(Magics):
 
     @line_magic
     def tag_benchmark(self, line):
+        log_dir = Path("logs")
+        log_dir.mkdir(exist_ok=True, parents=True)
         logging.basicConfig(
             format=f"%(asctime)s,%(message)s,{VERSION},{line}",
-            filename="log.log",
+            filename= str(log_dir / f"{datetime.datetime.now().isoformat()}.log"),
             encoding="utf-8",
             level=logging.INFO,
         )
