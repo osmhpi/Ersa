@@ -21,4 +21,7 @@ RUN python -m venv /venv
 RUN /venv/bin/pip3 install -r /app/requirements.txt
 RUN /venv/bin/pip3 install git+https://github.com/sirexeclp/nvidia-ml-py3.git
 # ENV HOME="/root"
-CMD /app/run.sh
+STOPSIGNAL SIGINT
+
+USER felix
+ENTRYPOINT ["/app/run.sh"]

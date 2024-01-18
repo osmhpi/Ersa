@@ -2,6 +2,7 @@
 import hashlib
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import uuid
@@ -356,11 +357,18 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
         except KeyboardInterrupt:
             print("got Ctrl+C, cleaning up")
             listener.close()
+            if socket is not None:
+                Path(socket).unlink(missing_ok=True)
+
             for worker in worker_processes:
+                worker.terminate()
                 worker.join()
             break
         except Exception:  # pylint: disable=broad-exception-caught
             listener.close()
+            if socket is not None:
+                Path(socket).unlink(missing_ok=True)
+    
 
 
 if __name__ == "__main__":

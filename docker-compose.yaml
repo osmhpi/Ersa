@@ -1,5 +1,6 @@
 services:
   megaclite:
+    init: true
     privileged: true
     build: .
     user: "5087"
@@ -11,6 +12,7 @@ services:
       - "../remotefs:/remotefs"
       - ".:/app"
       - /tmp/megaclite-docker/.pyenv/versions:/home/felix/.pyenv/versions
+      - /home/Felix.Grzelka/megaclite/data:/home/Felix.Grzelka/megaclite/data
     environment:
       HOME: /home/felix
       WORKINGDIR: /home/felix/projects/uni/phd/kisz/megaclite
