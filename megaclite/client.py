@@ -171,6 +171,7 @@ class RemoteTrainingMagics(Magics):
 
     def send_job(self, job, on_success: Optional[callable] = None):
         """Send the job to the server and process responses."""
+        print(self.address)
         conn = Client(self.address)
         try:
             logging.info("sending job start")
