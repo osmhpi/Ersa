@@ -141,14 +141,27 @@ class RemoteTrainingMagics(Magics):
 
             tensor = args[0]
             device = kwargs["device"] if "device" in kwargs else args[1]
+            
+            # print("patched tensor to")
+
+            # if not namespace["torch"].cuda.is_available():
+            #     print("no cuda")
+            #     original_tensor_to(tensor, device="cpu")
+            #     return tensor
             tensor_map[tensor] = device
             return tensor
 
         def patched_module_to(*args, **kwargs):
             if HAS_GPU or (len(args) <= 1 and "device" not in kwargs):
                 # print("original module to")
-                return self.original_module_to(*args, **kwargs)
+                return original_module_to(*args, **kwargs)
             tensor = args[0]
+            # print("patched_module_to")
+            # if not namespace["torch"].cuda.is_available():
+            #     print("no cuda")
+            #     original_module_to(tensor, device="cpu")
+            #     return tensor
+
             device = kwargs.get("device", args[1])
             module_map[tensor] = device
             return tensor
@@ -174,7 +187,7 @@ class RemoteTrainingMagics(Magics):
         print(self.address)
         conn = Client(self.address)
         try:
-            logging.info("sending job start")
+            logging.info("sending job started")
             conn.send(job)
             logging.info("sending job finished")
             job_uuid = None
@@ -224,6 +237,7 @@ class RemoteTrainingMagics(Magics):
 
         dill.dump_module(file)
 
+        logging.info(f"data size:{len(file.getbuffer())}")
         self.print(f"<i>Sending {len(file.getbuffer())/2**20:.0f}MB of state.<i>")
         job = TrainingJob(
             cell,

@@ -1,5 +1,6 @@
 """This module implements the server for the remote GPU extension."""
 import hashlib
+import logging
 import os
 import re
 import signal
@@ -27,6 +28,7 @@ from .messages import (
     StdOut,
     TrainingJob,
 )
+from . import __version__ as VERSION
 
 EXCLUDED_PACKAGES = ["megaclite", ".*pynvml3"]
 ADDITIONAL_PACKAGES = ["click"]
@@ -228,7 +230,9 @@ def execute_in_subprocess(
             conn.send(StdErr(line))
     if process.returncode == 0:
         conn.send(JobInfo(state=JobState.FINISHED, no_in_queue=0, uuid=job.uuid))
-        conn.send(JobResult(result=output_file.read_bytes()))
+        result = output_file.read_bytes()
+        logging.info(f"result size:{len(result)}")
+        conn.send(JobResult(result=result))
     else:
         conn.send(JobInfo(state=JobState.FAILED, no_in_queue=0, uuid=job.uuid))
 
@@ -259,10 +263,16 @@ def worker_main(queue, gpus):
 
         # conn.send(JobInfo(state=JobState.PREPARING_ENVIRONMENT, no_in_queue=0, uuid=message.uuid))
         print("installing python")
+        logging.info("installing python started")
         install_python_version(message.client.python_version)
+        logging.info("installing python finished")
+        
+        logging.info("preparing venv started")
         venv_dir = create_venv_with_requirements(
             message.client.python_version, message.client.packages
         )
+        logging.info("preparing venv finished")
+        
         working_dir = get_synced_cwd(message.client.user_name)
         print(working_dir)
         # conn.send(JobInfo(state=JobState.ENVIRONMENT_READY, no_in_queue=0, uuid=message.uuid))
@@ -278,7 +288,9 @@ def worker_main(queue, gpus):
                     )
             else:
                 gpu = gpus.get()
+                logging.info("job execution started")
                 execute_in_subprocess(venv_dir, working_dir, message, conn, gpu)
+                logging.info("job execution finished")
                 gpus.put(gpu)
         elif isinstance(message, ShellJob):
             execute_shell_script(working_dir, message, conn)
@@ -293,6 +305,17 @@ def worker_main(queue, gpus):
 @click.option("-g", "--gpu", multiple=True, default=["0"])
 def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[str]):
     """The main function"""
+
+    log_dir = Path("logs/server")
+    log_dir.mkdir(exist_ok=True, parents=True)
+    logging.basicConfig(
+        format=f"%(asctime)s.%(msecs)09d,%(message)s,{VERSION},server",
+        filename= str(log_dir / f"{datetime.now().isoformat()}.log"),
+        encoding="utf-8",
+        level=logging.INFO,
+        datefmt='%Y-%m-%dT%H:%M:%S',
+    )
+
     if socket is not None:
         Path(socket).parent.mkdir(parents=True, exist_ok=True)
         listener = Listener(socket)
@@ -324,8 +347,11 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
         try:
             conn = listener.accept()
             print("new connection accepted")
+            logging.info("recieving job started")
             message = conn.recv()
+            logging.info("recieving job finished")
             if isinstance(message, TrainingJob):
+                logging.info("sending jobid started")
                 print(
                     "got new TrainingJob",
                     listener.last_accepted,
@@ -338,6 +364,7 @@ def main(host: str, port: int, workers: int, socket: Optional[str], gpu: list[st
                         state=JobState.PENDING, no_in_queue=jobs.qsize(), uuid=job_uuid
                     )
                 )
+                logging.info("sending jobid finished")
             elif isinstance(message, ShellJob):
                 print(
                     "got new ShellJob",
