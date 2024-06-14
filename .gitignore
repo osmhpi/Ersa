@@ -3,6 +3,7 @@ benchmark-results
 .megacliterc
 venv/
 data/
+data-new/
 data.old/
 .ipynb_checkpoints
 model-*
