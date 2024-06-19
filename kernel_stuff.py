@@ -1,14 +1,21 @@
 """Run multi kernel benchmarks."""
+
+import csv
+import datetime
 import os
 import sys
 import time
+from multiprocessing import Event, Process
 from pathlib import Path
 from queue import Empty
 
 import click
 import nbformat
 import pandas as pd
+import psutil
 from jupyter_client import MultiKernelManager
+from pynvml3.enums import TemperatureSensors
+from pynvml3.pynvml import NVMLLib
 from tqdm import tqdm
 
 
@@ -31,13 +38,22 @@ def get_output(client, msg_id):
 
 def get_result(client):
     """Get the value of the 'result' variable from the kernel."""
-    msg_id = client.execute("print(result)")
-    return get_output(client, msg_id)
+    return get_var(client, "result")
 
 
-def get_duration(client):
-    """Get the value of the 'duration' variable from the kernel."""
-    msg_id = client.execute("print(duration)")
+def get_start(client):
+    """Get the value of the 'start' variable from the kernel."""
+    return get_var(client, "start")
+
+
+def get_end(client):
+    """Get the value of the 'end' variable from the kernel."""
+    return get_var(client, "end")
+
+
+def get_var(client, name):
+    """Get the value of the variable from the kernel."""
+    msg_id = client.execute(f"print({name})")
     return get_output(client, msg_id)
 
 
@@ -60,39 +76,114 @@ def run_kernels_serial(code, num_kernels):
         Path("pids.txt").write_text("\n".join([str(x) for x in pids]), encoding="utf-8")
 
         results = []
-        durations = []
+        starts = []
+        ends = []
         dead = []
-        external_duration = []
+        external_starts = []
+        external_ends = []
 
         for cl_index, client in enumerate(tqdm(clients, file=sys.stdout)):
             tqdm.write(f"starting {pids[cl_index]}")
-            start = time.time()
             try:
+                external_start = datetime.datetime.now().isoformat()
                 for cell in code:
                     client.execute(cell, reply=True, timeout=45)
-                end = time.time()
+                external_end = datetime.datetime.now().isoformat()
             except TimeoutError:
                 result = "kernel died"
-                duration = 0
+                start = None
+                end = None
             else:
                 result = get_result(client)
-                duration = get_duration(client)
+                start = get_start(client)
+                end = get_end(client)
 
-            external_duration.append(end - start)
+            external_starts.append(external_start)
+            external_ends.append(external_end)
             results.append(result)
-            durations.append(duration)
+            starts.append(start)
+            ends.append(end)
 
             dead_kernels = [
                 index for index, pid in enumerate(pids) if not check_pid(pid)
             ]
             dead.append(dead_kernels)
-            tqdm.write(f"{result} {duration} {dead_kernels}")
+            tqdm.write(
+                f"{result} {(external_end - external_start).total_seconds()} {dead_kernels}"
+            )
     except KeyboardInterrupt:
         print("Received Keyboard Interrupt")
     finally:
         mkm.shutdown_all()
 
-    return results, durations, dead, external_duration
+    return results, starts, ends, dead, external_starts, external_ends
+
+
+
+
+def record_metrics(metrics_path, done: Event):
+    """Record metrics from GPU and CPU."""
+    DELAY = 0.25
+    with NVMLLib() as lib:
+        print("Driver Version:", lib.system.get_driver_version())
+        if not metrics_path.exists():
+            metrics_path.write_text(
+                ",".join(
+                    [
+                        "timestamp",
+                        "index",
+                        "name",
+                        "gpu_memory_util",
+                        "gpu_util",
+                        "power",
+                        "total_energy",
+                        "temperature",
+                        "gpu_memory_total",
+                        "gpu_memory_reserved",
+                        "gpu_memory_free",
+                        "gpu_memory_used",
+                        "cpu_util",
+                        "host_memory_total",
+                        "host_memory_used",
+                        "host_memory_free",
+                        "host_memory_percentage",
+                    ]
+                )
+            )
+            metrics_path.write_text("\n")
+        with open(metrics_path, "a", newline="", encoding="utf-8") as csvfile:
+            for index, device in enumerate(lib.device):
+                csv_writer = csv.writer(
+                    csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
+                )
+                while not done.is_set():
+                    start = time.time()
+                    util = device.get_utilization_rates()
+                    gpu_memory = device.get_memory_info(version=2)
+                    host_memory = psutil.virtual_memory()
+                    csv_writer.writerow(
+                        [
+                            datetime.datetime.now().isoformat(),
+                            index,
+                            device.get_name(),
+                            util.memory,
+                            util.gpu,
+                            device.get_power_usage(),
+                            device.get_total_energy_consumption(),
+                            device.get_temperature(TemperatureSensors.TEMPERATURE_GPU),
+                            gpu_memory.total,
+                            gpu_memory.reserved,
+                            gpu_memory.free,
+                            gpu_memory.used,
+                            psutil.cpu_percent(),
+                            host_memory.total,
+                            host_memory.used,
+                            host_memory.free,
+                            host_memory.percent,
+                        ]
+                    )
+                    end = time.time()
+                    time.sleep(DELAY - (end - start))
 
 
 @click.command
@@ -100,8 +191,10 @@ def run_kernels_serial(code, num_kernels):
 @click.argument(
     "benchmark", type=click.Path(exists=True, path_type=Path, dir_okay=False)
 )
-@click.argument("output", type=click.File("w"))
-def main(kernels, benchmark: Path, output):
+@click.argument(
+    "output", type=click.Path(path_type=Path, dir_okay=False, writable=True)
+)
+def main(kernels, benchmark: Path, output: Path):
     """The main function."""
     if benchmark.suffix == ".py":
         code = [benchmark.read_text()]
@@ -114,17 +207,26 @@ def main(kernels, benchmark: Path, output):
         raise ValueError(
             "Benchmark needs to be a python script (.py) or jupyter notebook (.ipynb)."
         )
-    accuracys, durations, dead_kernels, external_duration = run_kernels_serial(
+
+    done = Event()
+    process = Process(
+        target=record_metrics, args=(output.with_suffix(".metrics.csv"), done)
+    )
+    accuracys, starts, ends, dead_kernels, external_starts, external_ends = run_kernels_serial(
         code, kernels
     )
+    done.set()
+    process.join()
     pd.DataFrame(
         {
             "accuracy": accuracys,
-            "duration": durations,
+            "start": starts,
+            "end": ends,
             "dead_kernels": dead_kernels,
-            "external_duration": external_duration,
+            "external_start": external_starts,
+            "external_end": external_ends
         }
-    ).to_csv(output)
+    ).to_csv(str(output))
 
 
 if __name__ == "__main__":
