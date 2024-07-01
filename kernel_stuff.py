@@ -85,21 +85,22 @@ def run_kernels_serial(code, num_kernels):
         for cl_index, client in enumerate(tqdm(clients, file=sys.stdout)):
             tqdm.write(f"starting {pids[cl_index]}")
             try:
-                external_start = datetime.datetime.now().isoformat()
+                external_start = datetime.datetime.now()
                 for cell in code:
                     client.execute(cell, reply=True, timeout=45)
-                external_end = datetime.datetime.now().isoformat()
+                external_end = datetime.datetime.now()
             except TimeoutError:
                 result = "kernel died"
                 start = None
                 end = None
+                external_end = datetime.datetime.now()
             else:
                 result = get_result(client)
                 start = get_start(client)
                 end = get_end(client)
 
-            external_starts.append(external_start)
-            external_ends.append(external_end)
+            external_starts.append(external_start.isoformat())
+            external_ends.append(external_end.isoformat())
             results.append(result)
             starts.append(start)
             ends.append(end)
@@ -119,71 +120,76 @@ def run_kernels_serial(code, num_kernels):
     return results, starts, ends, dead, external_starts, external_ends
 
 
-
-
-def record_metrics(metrics_path, done: Event):
+def record_metrics(metrics_path, done):
     """Record metrics from GPU and CPU."""
-    DELAY = 0.25
+    DELAY = 0.5
     with NVMLLib() as lib:
         print("Driver Version:", lib.system.get_driver_version())
-        if not metrics_path.exists():
-            metrics_path.write_text(
-                ",".join(
-                    [
-                        "timestamp",
-                        "index",
-                        "name",
-                        "gpu_memory_util",
-                        "gpu_util",
-                        "power",
-                        "total_energy",
-                        "temperature",
-                        "gpu_memory_total",
-                        "gpu_memory_reserved",
-                        "gpu_memory_free",
-                        "gpu_memory_used",
-                        "cpu_util",
-                        "host_memory_total",
-                        "host_memory_used",
-                        "host_memory_free",
-                        "host_memory_percentage",
-                    ]
-                )
+        data = []
+        device = lib.device[0]
+        
+        while not done.is_set():
+            start = time.time()
+
+            util = device.get_utilization_rates()
+            gpu_memory = device.get_memory_info(version=2)
+            host_memory = psutil.virtual_memory()
+            swap_memory = psutil.swap_memory()
+            data.append(
+                [
+                    datetime.datetime.now().isoformat(),
+                    util.memory,
+                    util.gpu,
+                    device.get_power_usage(),
+                    device.get_total_energy_consumption(),
+                    device.get_temperature(TemperatureSensors.TEMPERATURE_GPU),
+                    gpu_memory.total,
+                    gpu_memory.reserved,
+                    gpu_memory.free,
+                    gpu_memory.used,
+                    psutil.cpu_percent(),
+                    host_memory.total,
+                    host_memory.used,
+                    host_memory.free,
+                    host_memory.percent,
+                    swap_memory.total,
+                    swap_memory.used,
+                    swap_memory.free,
+                    swap_memory.percent,
+                    swap_memory.sin,
+                    swap_memory.sout,
+                ]
             )
-            metrics_path.write_text("\n")
-        with open(metrics_path, "a", newline="", encoding="utf-8") as csvfile:
-            for index, device in enumerate(lib.device):
-                csv_writer = csv.writer(
-                    csvfile, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL
-                )
-                while not done.is_set():
-                    start = time.time()
-                    util = device.get_utilization_rates()
-                    gpu_memory = device.get_memory_info(version=2)
-                    host_memory = psutil.virtual_memory()
-                    csv_writer.writerow(
-                        [
-                            datetime.datetime.now().isoformat(),
-                            index,
-                            device.get_name(),
-                            util.memory,
-                            util.gpu,
-                            device.get_power_usage(),
-                            device.get_total_energy_consumption(),
-                            device.get_temperature(TemperatureSensors.TEMPERATURE_GPU),
-                            gpu_memory.total,
-                            gpu_memory.reserved,
-                            gpu_memory.free,
-                            gpu_memory.used,
-                            psutil.cpu_percent(),
-                            host_memory.total,
-                            host_memory.used,
-                            host_memory.free,
-                            host_memory.percent,
-                        ]
-                    )
-                    end = time.time()
-                    time.sleep(DELAY - (end - start))
+
+            end = time.time()
+            time.sleep(max(DELAY - (end - start),0))
+
+    pd.DataFrame(
+        data,
+        columns=[
+            "timestamp",
+            "gpu_memory_util",
+            "gpu_util",
+            "power",
+            "total_energy",
+            "temperature",
+            "gpu_memory_total",
+            "gpu_memory_reserved",
+            "gpu_memory_free",
+            "gpu_memory_used",
+            "cpu_util",
+            "host_memory_total",
+            "host_memory_used",
+            "host_memory_free",
+            "host_memory_percentage",
+            "swap_memory_total",
+            "swap_memory_used",
+            "swap_memory_free",
+            "swap_memory_percentage",
+            "swap_memory_in",
+            "swap_memory_out",
+        ],
+    ).to_csv(metrics_path)
 
 
 @click.command
@@ -212,8 +218,9 @@ def main(kernels, benchmark: Path, output: Path):
     process = Process(
         target=record_metrics, args=(output.with_suffix(".metrics.csv"), done)
     )
-    accuracys, starts, ends, dead_kernels, external_starts, external_ends = run_kernels_serial(
-        code, kernels
+    process.start()
+    accuracys, starts, ends, dead_kernels, external_starts, external_ends = (
+        run_kernels_serial(code, kernels)
     )
     done.set()
     process.join()
@@ -224,7 +231,7 @@ def main(kernels, benchmark: Path, output: Path):
             "end": ends,
             "dead_kernels": dead_kernels,
             "external_start": external_starts,
-            "external_end": external_ends
+            "external_end": external_ends,
         }
     ).to_csv(str(output))
 
