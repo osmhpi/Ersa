@@ -1,10 +1,10 @@
-# ersa (Jupyter Remote GPU)
+# Ersa (Jupyter Remote GPU)
 
 This project provides an ipython magic extension, to enable training pytorch models on remote GPU servers.
 
 This project is named `ersa` after one of the moons of Jupiter.[1]
 
-[1]: https://en.wikipedia.org/wiki/ersa
+[1]: https://en.wikipedia.org/wiki/Ersa_(moon)
 
 
 ## Getting Started
