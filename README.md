@@ -1,18 +1,18 @@
-# MEGACLITE (Jupyter Remote GPU)
+# ersa (Jupyter Remote GPU)
 
 This project provides an ipython magic extension, to enable training pytorch models on remote GPU servers.
 
-This project is named `Megaclite` after one of the moons of Jupiter.[1]
+This project is named `ersa` after one of the moons of Jupiter.[1]
 
-[1]: https://en.wikipedia.org/wiki/Megaclite
+[1]: https://en.wikipedia.org/wiki/ersa
 
 
 ## Getting Started
 
 ~~~bash
 # clone the repo
-git clone git@gitlab.hpi.de:kisz/research/megaclite.git
-cd megaclite
+git clone git@gitlab.hpi.de:kisz/research/ersa.git
+cd ersa
 # create a new virtual environment
 python3 -m venv venv
 source ./venv/bin/activate

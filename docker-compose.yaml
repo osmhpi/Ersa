@@ -1,5 +1,5 @@
 services:
-  megaclite:
+  ersa:
     init: true
     privileged: true
     build: .
@@ -8,14 +8,14 @@ services:
       - "6666:6666"
     volumes:
       - /home/Felix.Grzelka/.cache/huggingface/datasets:/home/Felix.Grzelka/.cache/huggingface/datasets
-      - /tmp/megaclite-docker:/tmp/megaclite
+      - /tmp/ersa-docker:/tmp/ersa
       - "../remotefs:/remotefs"
       - ".:/app"
-      - /tmp/megaclite-docker/.pyenv/versions:/home/felix/.pyenv/versions
-      - /home/Felix.Grzelka/megaclite/data:/home/Felix.Grzelka/megaclite/data
+      - /tmp/ersa-docker/.pyenv/versions:/home/felix/.pyenv/versions
+      - /home/Felix.Grzelka/ersa/data:/home/Felix.Grzelka/ersa/data
     environment:
       HOME: /home/felix
-      WORKINGDIR: /home/felix/projects/uni/phd/kisz/megaclite
+      WORKINGDIR: /home/felix/projects/uni/phd/kisz/ersa
     working_dir: /app
     # attach one gpu to the container
     deploy:

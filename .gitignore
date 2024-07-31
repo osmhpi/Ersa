@@ -1,6 +1,6 @@
 pids.txt
 benchmark-results
-.megacliterc
+.ersarc
 venv/
 data/
 data-new/
@@ -13,8 +13,8 @@ tls_client.py
 tls_server.py
 *.pem
 build/*
-megaclite.egg-info/*
-megaclite/__pycache__/*# Created by https://www.toptal.com/developers/gitignore/api/python
+ersa.egg-info/*
+ersa/__pycache__/*# Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
 ### Python ###

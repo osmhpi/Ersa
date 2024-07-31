@@ -7,7 +7,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "megaclite"
+name = "ersa"
 description = "Remote GPU training for Jupyter"
 requires-python = ">=3.9"
 authors = [{name = "Felix Grzelka", email = "Felix.Grzelka@hpi.de"}]
@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["megaclite"]
+packages = ["ersa"]
 
 [project.urls]
 Home = "https://osm.hpi.de"
@@ -37,8 +37,8 @@ demo = ["torch==2.0.0",
     ]
 
 [tool.setuptools.dynamic]
-version = {attr = "megaclite.__version__"}
+version = {attr = "ersa.__version__"}
 readme = {file = ["README.md"]}
 
 [project.scripts]
-megaclite-server = "megaclite.server:main"
+ersa-server = "ersa.server:main"

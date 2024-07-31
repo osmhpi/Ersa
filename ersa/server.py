@@ -30,7 +30,7 @@ from .messages import (
 )
 from . import __version__ as VERSION
 
-EXCLUDED_PACKAGES = ["megaclite", ".*pynvml3"]
+EXCLUDED_PACKAGES = ["ersa", ".*pynvml3"]
 ADDITIONAL_PACKAGES = ["click"]
 
 
@@ -100,7 +100,7 @@ def get_tmp_dir(sub_dir=None):
     """Create a new temporary directory."""
     if sub_dir is None:
         sub_dir = datetime.now().isoformat()
-    tmp_path = Path(tempfile.gettempdir(), "megaclite", sub_dir)
+    tmp_path = Path(tempfile.gettempdir(), "ersa", sub_dir)
     tmp_path.mkdir(exist_ok=True, parents=True)
     return tmp_path
 
@@ -178,7 +178,7 @@ def create_venv_with_requirements(version, requirements: list[str]):
         text=True,
         check=True,
     )
-    print("installing megaclite")
+    print("installing ersa")
     subprocess.run(
         [str(get_pip(tmp_path)), "install", "."],
         text=True,
@@ -211,7 +211,7 @@ def execute_in_subprocess(
         [
             get_python(venv_dir),
             "-m",
-            "megaclite._runtime",
+            "ersa._runtime",
             str(state_file),
             str(cell_file),
             str(output_file),

@@ -16,7 +16,7 @@ RUN chown -R felix:felix /app
 RUN mkdir /venv
 RUN chown -R felix:felix /venv
 USER felix
-RUN mkdir -p /home/felix/projects/uni/phd/kisz/megaclite/data
+RUN mkdir -p /home/felix/projects/uni/phd/kisz/ersa/data
 RUN python -m venv /venv
 RUN /venv/bin/pip3 install -r /app/requirements.txt
 RUN /venv/bin/pip3 install git+https://github.com/sirexeclp/nvidia-ml-py3.git

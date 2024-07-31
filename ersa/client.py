@@ -1,4 +1,4 @@
-"""This module implements the client side jupyter extension of megaclite."""
+"""This module implements the client side jupyter extension of ersa."""
 import argparse
 import datetime
 from itertools import chain
@@ -59,7 +59,7 @@ class RemoteTrainingMagics(Magics):
 
     def __init__(self, shell):
         super().__init__(shell)
-        print(f"loading megaclite version {VERSION}")
+        print(f"loading ersa version {VERSION}")
         print(shell)
         self.host: str = "127.0.0.1"
         self.port: str = 6001
@@ -69,17 +69,17 @@ class RemoteTrainingMagics(Magics):
         self.address = None
         self.disabled = False
 
-        if "MEGACLITE_DISABLE" in os.environ:
-            self.disabled = os.environ["MEGACLITE_DISABLE"] == "1"
-            print("megaclite is disabled")
+        if "ERSA_DISABLE" in os.environ:
+            self.disabled = os.environ["ERSA_DISABLE"] == "1"
+            print("ersa is disabled")
 
-        megaclite_rc_path = Path(".megacliterc")
+        ersa_rc_path = Path(".ersarc")
 
-        if megaclite_rc_path.exists():
-            megaclite_rc = toml.load(megaclite_rc_path)
-            self.host = megaclite_rc.get("host", self.host)
-            self.port = megaclite_rc.get("port", self.port)
-            self.socket = megaclite_rc.get("socket", self.socket)
+        if ersa_rc_path.exists():
+            ersa_rc = toml.load(ersa_rc_path)
+            self.host = ersa_rc.get("host", self.host)
+            self.port = ersa_rc.get("port", self.port)
+            self.socket = ersa_rc.get("socket", self.socket)
 
         if self.socket is not None:
             self.address = self.socket
@@ -279,7 +279,7 @@ class RemoteTrainingMagics(Magics):
 
         excludes = [f'"{item}"' for item in excludes]
         excludes = list(chain(*zip(["--exclude"] * len(excludes), excludes)))
-        server_wd_path = f"/tmp/megaclite/wd/{os.getlogin()}"
+        server_wd_path = f"/tmp/ersa/wd/{os.getlogin()}"
         server = "gx06"
         args = ["rsync", "-hazupEh", *excludes, ".", f"{server}:{server_wd_path}"]
         print(" ".join(args))
@@ -332,7 +332,7 @@ class RemoteTrainingMagics(Magics):
         self.init_print()
 
         if self.disabled:
-            self.print("megaclite is disabled")
+            self.print("ersa is disabled")
             logging.info("local execution started")
             result = self.shell.run_cell(cell)
             logging.info("local execution finished")
@@ -353,6 +353,6 @@ class RemoteTrainingMagics(Magics):
 
 
 def load_ipython_extension(ipython):
-    """Register the megaclite magic with ipython."""
+    """Register the ersa magic with ipython."""
     magics = RemoteTrainingMagics(ipython)
     ipython.register_magics(magics)
