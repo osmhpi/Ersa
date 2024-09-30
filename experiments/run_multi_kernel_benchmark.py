@@ -1,8 +1,10 @@
 """Run multi kernel benchmarks."""
 
+import copy
 import csv
 import datetime
 import os
+import subprocess
 import sys
 import time
 from multiprocessing import Event, Process
@@ -200,6 +202,8 @@ def record_metrics(metrics_path, done):
 @click.argument(
     "output", type=click.Path(path_type=Path, dir_okay=False, writable=True)
 )
+# @click.option('--framework',
+#               type=click.Choice(['baseline', "nvshare","ersa"], case_sensitive=False))
 def main(kernels, benchmark: Path, output: Path):
     """The main function."""
     if benchmark.suffix == ".py":
@@ -213,6 +217,19 @@ def main(kernels, benchmark: Path, output: Path):
         raise ValueError(
             "Benchmark needs to be a python script (.py) or jupyter notebook (.ipynb)."
         )
+    
+    # env = copy.deepcopy(os.environ)
+
+    # if framework != "ersa":
+    #     env |= {"MEGACLITE_DISABLE": "1"}
+    # else:
+
+    
+    # if framework == "nvshare":
+    #     env |= {"LD_PRELOAD": "libnvshare.so"}
+    #     subprocess.run(
+    #             env=env
+    #         )
 
     done = Event()
     process = Process(
