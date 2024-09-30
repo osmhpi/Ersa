@@ -221,7 +221,7 @@ def main(kernels, benchmark: Path, output: Path):
     # env = copy.deepcopy(os.environ)
 
     # if framework != "ersa":
-    #     env |= {"MEGACLITE_DISABLE": "1"}
+    #     env |= {"ERSA_DISABLE": "1"}
     # else:
 
     
