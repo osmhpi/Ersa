@@ -11,7 +11,7 @@ This project is named `ersa` after one of the moons of Jupiter.[1]
 
 ~~~bash
 # clone the repo
-git clone git@gitlab.hpi.de:kisz/research/ersa.git
+git clone git@github.com:osmhpi/ersa.git
 cd ersa
 # create a new virtual environment
 python3 -m venv venv
@@ -23,7 +23,7 @@ pip3 install .[demo]
 Forward port 6001 to a remote server with a running server instance.
 
 ~~~bash
-ssh -L 6001:127.0.0.1:6001 vm-midea04.eaalab.hpi.uni-potsdam.de
+ssh -L 6001:127.0.0.1:6001 my-gpu-server.com
 ~~~
 
 You should now be able to run the `client.ipynb` notebook.
@@ -38,5 +38,5 @@ make sure to have the following packages installed
 - libsqlite3-dev
 - libsqlite3-dev liblzma-dev libctypes-ocaml libreadline-dev libbz2-dev 
 
-libffi-dev  ?
+libffi-dev ?
 libssl-dev ?
