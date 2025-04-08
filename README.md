@@ -1,3 +1,5 @@
+[![hpi_logo.png](images/hpi_logo.png)](https://hpi.de/en/research/hpi-data-center/ai-service-center/)
+
 # Ersa (Jupyter Remote GPU)
 
 This project provides an ipython magic extension, to enable training pytorch models on remote GPU servers.
@@ -40,3 +42,8 @@ make sure to have the following packages installed
 
 libffi-dev ?
 libssl-dev ?
+
+---
+![BMBF_non_transparent.jpeg](images/BMBF_non_transparent.jpeg) 
+
+This is an artefact from KI-Servicezentrum Berlin-Brandenburg. KI-Servicezentrum Berlin-Brandenburg is funded by the Federal Ministry of Education and Research under the funding code 01IS22092.
